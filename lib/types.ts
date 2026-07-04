@@ -1,8 +1,6 @@
 export type DailyForecast = {
   /** YYYY-MM-DD */
   date: string;
-  /** Representative timestamp (unix seconds) used to pick this day's summary entry */
-  dt: number;
   tempMin: number;
   tempMax: number;
   /** Temperature of the representative (near-midday) entry */
@@ -10,7 +8,6 @@ export type DailyForecast = {
   humidity: number;
   /** Probability of precipitation, 0-100 */
   pop: number;
-  weatherMain: string;
   weatherDescription: string;
   weatherIcon: string;
 };
@@ -27,7 +24,6 @@ export type OpenWeatherForecastResponse = {
     country: string;
   };
   list: {
-    dt: number;
     dt_txt: string;
     main: {
       temp: number;
@@ -36,7 +32,6 @@ export type OpenWeatherForecastResponse = {
       humidity: number;
     };
     weather: {
-      main: string;
       description: string;
       icon: string;
     }[];

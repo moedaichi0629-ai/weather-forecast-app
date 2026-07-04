@@ -58,13 +58,11 @@ function groupByDay(
 
     return {
       date,
-      dt: representative.dt,
       tempMin: Math.round(tempMin),
       tempMax: Math.round(tempMax),
       temp: Math.round(representative.main.temp),
       humidity: representative.main.humidity,
       pop,
-      weatherMain: representative.weather[0]?.main ?? "",
       weatherDescription: representative.weather[0]?.description ?? "",
       weatherIcon: representative.weather[0]?.icon ?? "01d",
     };
