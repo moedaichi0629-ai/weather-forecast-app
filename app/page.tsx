@@ -4,14 +4,29 @@ import { useState } from "react";
 import SearchForm from "@/components/SearchForm";
 import DateSelector from "@/components/DateSelector";
 import WeatherCard from "@/components/WeatherCard";
+import SearchHistory from "@/components/SearchHistory";
+import FavoriteCities from "@/components/FavoriteCities";
 import { fetchCityForecast } from "@/lib/weather";
 import type { CityForecast } from "@/lib/types";
+import {
+  addFavoriteCity,
+  addSearchHistory,
+  getFavoriteCities,
+  getSearchHistory,
+  isFavoriteCity,
+  removeFavoriteCity,
+  removeSearchHistory,
+} from "@/lib/storage";
 
 export default function Home() {
   const [forecast, setForecast] = useState<CityForecast | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [history, setHistory] = useState<string[]>(() => getSearchHistory());
+  const [favorites, setFavorites] = useState<string[]>(() =>
+    getFavoriteCities()
+  );
 
   const handleSearch = async (city: string) => {
     setIsLoading(true);
@@ -20,6 +35,7 @@ export default function Home() {
       const result = await fetchCityForecast(city);
       setForecast(result);
       setSelectedDate(result.days[0]?.date ?? null);
+      setHistory(addSearchHistory(result.cityName));
     } catch {
       setForecast(null);
       setSelectedDate(null);
@@ -29,7 +45,26 @@ export default function Home() {
     }
   };
 
+  const handleRemoveHistory = (city: string) => {
+    setHistory(removeSearchHistory(city));
+  };
+
+  const handleRemoveFavorite = (city: string) => {
+    setFavorites(removeFavoriteCity(city));
+  };
+
+  const handleToggleFavorite = () => {
+    if (!forecast) return;
+    setFavorites(
+      isFavoriteCity(forecast.cityName, favorites)
+        ? removeFavoriteCity(forecast.cityName)
+        : addFavoriteCity(forecast.cityName)
+    );
+  };
+
   const selectedDay = forecast?.days.find((d) => d.date === selectedDate);
+  const isCurrentCityFavorite =
+    !!forecast && isFavoriteCity(forecast.cityName, favorites);
 
   return (
     <div className="flex flex-1 flex-col items-center bg-slate-50 dark:bg-slate-950">
@@ -44,6 +79,18 @@ export default function Home() {
         </div>
 
         <SearchForm onSearch={handleSearch} isLoading={isLoading} />
+
+        <SearchHistory
+          history={history}
+          onSelect={handleSearch}
+          onRemove={handleRemoveHistory}
+        />
+
+        <FavoriteCities
+          favorites={favorites}
+          onSelect={handleSearch}
+          onRemove={handleRemoveFavorite}
+        />
 
         {isLoading && (
           <p className="text-slate-500 dark:text-slate-400">読み込み中...</p>
@@ -60,6 +107,15 @@ export default function Home() {
               selectedDate={selectedDay.date}
               onSelect={setSelectedDate}
             />
+            <button
+              type="button"
+              onClick={handleToggleFavorite}
+              className="text-sm font-medium text-amber-600 hover:underline dark:text-amber-400"
+            >
+              {isCurrentCityFavorite
+                ? "★ お気に入りに登録済み"
+                : "☆ お気に入りに追加"}
+            </button>
             <WeatherCard
               cityName={forecast.cityName}
               country={forecast.country}
