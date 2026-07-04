@@ -6,8 +6,9 @@ import DateSelector from "@/components/DateSelector";
 import WeatherCard from "@/components/WeatherCard";
 import SearchHistory from "@/components/SearchHistory";
 import FavoriteCities from "@/components/FavoriteCities";
-import { fetchCityForecast } from "@/lib/weather";
-import type { CityForecast } from "@/lib/types";
+import CurrentLocationButton from "@/components/CurrentLocationButton";
+import { fetchCityForecast, fetchForecastByCoords } from "@/lib/weather";
+import type { CityForecast, Coordinates } from "@/lib/types";
 import {
   addFavoriteCity,
   addSearchHistory,
@@ -45,6 +46,28 @@ export default function Home() {
     }
   };
 
+  const handleLocate = async (coords: Coordinates) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const result = await fetchForecastByCoords(coords);
+      setForecast(result);
+      setSelectedDate(result.days[0]?.date ?? null);
+    } catch {
+      setForecast(null);
+      setSelectedDate(null);
+      setError("現在地の天気情報を取得できませんでした");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleLocationError = (message: string) => {
+    setForecast(null);
+    setSelectedDate(null);
+    setError(message);
+  };
+
   const handleRemoveHistory = (city: string) => {
     setHistory(removeSearchHistory(city));
   };
@@ -79,6 +102,12 @@ export default function Home() {
         </div>
 
         <SearchForm onSearch={handleSearch} isLoading={isLoading} />
+
+        <CurrentLocationButton
+          onLocate={handleLocate}
+          onError={handleLocationError}
+          disabled={isLoading}
+        />
 
         <SearchHistory
           history={history}

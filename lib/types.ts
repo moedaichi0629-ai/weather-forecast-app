@@ -18,6 +18,11 @@ export type CityForecast = {
   days: DailyForecast[];
 };
 
+export type Coordinates = {
+  lat: number;
+  lon: number;
+};
+
 export type OpenWeatherForecastResponse = {
   city: {
     name: string;

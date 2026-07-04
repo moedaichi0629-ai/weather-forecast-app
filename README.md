@@ -48,12 +48,17 @@ https://weather-forecast-app-liart-two.vercel.app/
    何ができるか: 現在表示中の都市をお気に入り登録・解除でき、一覧から再検索できます。
    流れ: 天気カードの上にある「☆ お気に入りに追加」ボタンを押す → 都市名を`localStorage`（キー: `weather_favorite_cities`）に保存 → 一覧に追加され、クリックで再検索、×ボタンで削除できます。
 
+9. **現在地の天気取得**
+   何ができるか: 「📍 現在地の天気を取得」ボタンを押すと、都市名を入力せずに現在地の天気予報を取得できます。都市名検索と同じ天気カードに結果が表示されます。
+   流れ: ボタン押下 → ブラウザの位置情報の許可を確認（Geolocation API）→ 許可されたら緯度・経度を取得 → OpenWeatherMap APIに緯度・経度を渡して予報を取得 → 既存のWeatherCardに表示。位置情報が拒否された場合は「位置情報の取得が許可されませんでした」、取得や通信に失敗した場合は「現在地の天気情報を取得できませんでした」を表示します。なお、現在地検索の結果は検索履歴には保存されません（都市名検索の履歴と混同しないための仕様）が、お気に入りへの登録は可能です。
+
 ---
 
 # 使用技術
 
 ・フロントエンド: Next.js（App Router）, React, TypeScript, Tailwind CSS
-・API: OpenWeatherMap API（5 Day / 3 Hour Forecast）
+・API: OpenWeatherMap API（5 Day / 3 Hour Forecast、都市名検索・緯度経度検索の両対応）
+・ブラウザAPI: Geolocation API（現在地の緯度・経度取得）
 ・データ永続化: localStorage（検索履歴・お気に入り都市の保存）
 ・データベース: なし（天気データはAPIから都度取得するため未使用）
 ・デプロイ: Vercel
@@ -74,6 +79,7 @@ https://weather-forecast-app-liart-two.vercel.app/
 | 環境変数管理 | APIキーを `.env.local` で管理しコードに直書きしない |
 | 検索履歴 | 検索した都市を最大5件まで保存し、クリックで再検索・個別削除ができる |
 | お気に入り都市 | 表示中の都市をお気に入り登録・解除でき、一覧から再検索できる |
+| 現在地の天気取得 | Geolocation APIで取得した緯度・経度から現在地の天気を表示する |
 
 ---
 
@@ -105,12 +111,28 @@ https://weather-forecast-app-liart-two.vercel.app/
     ```
     - `components/SearchHistory.tsx` と `components/FavoriteCities.tsx` を作成し、一覧表示・選択・削除のUIを実装する。
     - `app/page.tsx` で検索成功時に `addSearchHistory(result.cityName)` を呼び出して履歴に追加し、お気に入りボタンの押下時に `addFavoriteCity` / `removeFavoriteCity` を呼び出す。
-12. ローカルで動作確認する。
+12. **現在地の天気取得機能を追加する。**
+    - `lib/types.ts` に緯度・経度を表す `Coordinates` 型を追加する。
+    - `lib/weather.ts` の内部処理を共通化し、都市名（`q`パラメータ）と緯度経度（`lat`/`lon`パラメータ）のどちらでも呼び出せる `fetchForecastByCoords(coords)` を追加する（既存の `fetchCityForecast(city)` はそのまま利用可能）。
+    - `components/CurrentLocationButton.tsx` を作成し、ボタン押下時に **Geolocation API** を呼び出す。
+      ```ts
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          // position.coords.latitude / position.coords.longitude が取得できる
+        },
+        (error) => {
+          // 許可されなかった場合は error.code === error.PERMISSION_DENIED
+        }
+      );
+      ```
+    - `app/page.tsx` に、取得した緯度・経度で `fetchForecastByCoords` を呼び出し、結果を既存の `WeatherCard` にそのまま表示する処理を追加する。都市名検索と同じ `forecast` / `selectedDate` / `isLoading` / `error` の状態をそのまま使い回すことで、二重管理を避ける。
+    - 位置情報が拒否された場合は「位置情報の取得が許可されませんでした」、それ以外の失敗時は「現在地の天気情報を取得できませんでした」を表示する。現在地取得の結果は `addSearchHistory` を呼ばないため検索履歴には残らない。
+13. ローカルで動作確認する。
     ```bash
     npm install
     npm run dev
     ```
-13. GitHubにリポジトリを作成し、コードをpushする。
+14. GitHubにリポジトリを作成し、コードをpushする。
     ```bash
     git init
     git add .
@@ -119,7 +141,9 @@ https://weather-forecast-app-liart-two.vercel.app/
     git remote add origin <リポジトリURL>
     git push -u origin main
     ```
-14. Vercelにリポジトリを連携し、Environment VariablesにAPIキーを設定してデプロイする。
+15. Vercelにリポジトリを連携し、Environment VariablesにAPIキーを設定してデプロイする。
+
+> **注意**: Geolocation APIはセキュリティ上の理由から、`localhost` を除き **HTTPS環境でのみ動作**します。Vercelにデプロイした本番URLは自動でHTTPS化されるため問題ありません。
 
 ---
 
@@ -136,10 +160,11 @@ weather-forecast-app/
 │   ├── DateSelector.tsx     # 日付選択ボタン群
 │   ├── WeatherCard.tsx      # 天気情報表示カード
 │   ├── SearchHistory.tsx    # 検索履歴の一覧・選択・削除UI
-│   └── FavoriteCities.tsx   # お気に入り都市の一覧・選択・削除UI
+│   ├── FavoriteCities.tsx   # お気に入り都市の一覧・選択・削除UI
+│   └── CurrentLocationButton.tsx # Geolocation APIで現在地を取得するボタン
 ├── lib/                     # ロジック・型定義
-│   ├── types.ts             # APIレスポンス型・アプリ内で使う型定義
-│   ├── weather.ts           # API呼び出しと日別データ集計ロジック
+│   ├── types.ts             # APIレスポンス型・アプリ内で使う型定義（座標型を含む）
+│   ├── weather.ts           # API呼び出し（都市名/緯度経度）と日別データ集計ロジック
 │   └── storage.ts           # 検索履歴・お気に入りのlocalStorage永続化
 ├── public/                  # 静的ファイル置き場
 ├── .env.local.example       # 環境変数のテンプレート
@@ -158,27 +183,25 @@ weather-forecast-app/
 ・**レスポンシブ対応**: Tailwind CSSのブレークポイント（`sm:`）とFlexbox/Gridで、スマホからPCまで崩れないレイアウトにした。履歴・お気に入りは折り返し表示（`flex-wrap`）にして、件数が増えてもスマホ幅で崩れないようにした。
 ・**ユーザー体験**: 入力欄が空の場合は検索ボタンを非活性にして無効な検索を防止。履歴・お気に入りが空の場合も「まだありません」という案内文を表示し、機能の存在が分かるようにした。
 ・**エラーハンドリング**: APIキー未設定・通信失敗・都市が見つからない場合など、あらゆる失敗パターンを1つの分かりやすいエラーメッセージに集約し、アプリがクラッシュしないようにした。
+・**既存機能を壊さない設計（現在地取得）**: `fetchCityForecast` は変更せず、共通のリクエスト処理を切り出したうえで新たに `fetchForecastByCoords` を追加する形にした。`app/page.tsx` 側も、都市名検索用の `handleSearch` はそのまま残し、現在地取得用に `handleLocate` / `handleLocationError` を新設することで、既存の検索フローに影響を与えないようにした。
+・**現在地取得の許可・拒否への対応**: `navigator.geolocation.getCurrentPosition` の成功・失敗コールバックをそれぞれハンドリングし、拒否時（`PERMISSION_DENIED`）とそれ以外の失敗時でメッセージを出し分けた。ボタン自身も取得中は非活性化し、二重クリックを防止した。
+・**表示の一貫性**: 都市名検索・現在地取得のどちらの結果も同じ `forecast` / `WeatherCard` に表示することで、ユーザーから見て取得方法の違いを意識させない設計にした。
 
 ---
 
 # 今後追加したい機能
 
-1. **現在地取得による自動天気表示（Geolocation API連携）**
-   どんな人に役立つか: 都市名を入力するのが面倒なユーザー。
-   どんな場面で使うか: 外出前にすぐ天気を確認したいとき。
-   メリット: 入力の手間がゼロになり、UXが向上する。
-
-2. **時間帯ごとの天気グラフ（Recharts）**
+1. **時間帯ごとの天気グラフ（Recharts）**
    どんな人に役立つか: 数値の羅列より視覚的に気温の推移を把握したい人。
    どんな場面で使うか: 1日の気温変化や降水確率の推移を掴みたいとき。
    メリット: 直感的に天気の変化を理解できる。
 
-3. **7日間の週間予報への対応（有料APIプランへの切り替え）**
+2. **7日間の週間予報への対応（有料APIプランへの切り替え）**
    どんな人に役立つか: より長期の予定を立てたい人。
    どんな場面で使うか: 旅行や屋外イベントの計画時。
    メリット: 現在の5日間より長いスパンで天気を見通せる。
 
-4. **お気に入り都市の並び替え・グループ分け**
+3. **お気に入り都市の並び替え・グループ分け**
    どんな人に役立つか: お気に入り登録数が多くなったヘビーユーザー。
    どんな場面で使うか: 「自宅」「実家」「出張先」など用途別に整理したいとき。
    メリット: 一覧が増えても目的の都市をすぐ見つけられる。
@@ -194,6 +217,7 @@ weather-forecast-app/
 ・**API連携**: OpenWeatherMapの無料プランでは7日間の週間予報が取得できず、5日間/3時間ごとの予報データを自前で日別に集計する必要があることを学んだ。
 ・**localStorageとReactの状態同期**: `localStorage` の読み込みを `useEffect` 内で `setState` すると、ESLintの `react-hooks/set-state-in-effect` ルールに抵触し、余計な再レンダリングも発生することを学んだ。`useState` の遅延初期化関数（`useState(() => ...)`）を使うことで、初回レンダリング時に一度だけ安全に読み込めることを理解した。
 ・**既存アプリへの機能追加**: 既存のコンポーネントやロジックを変更せず、新規ファイルの追加と `app/page.tsx` での配線のみで機能を拡張できるよう設計することで、既存機能への影響範囲を最小限に抑えられることを学んだ。
+・**Geolocation API**: `navigator.geolocation.getCurrentPosition` は成功・失敗の2つのコールバックを取る非Promise形式のAPIであること、許可拒否は `PermissionDeniedError`（`error.code === error.PERMISSION_DENIED`）として区別できることを学んだ。また、本番運用ではHTTPS環境でなければ動作しない制約があることも把握した。
 ・**改善点**: 現状はAPIキーをクライアント側（`NEXT_PUBLIC_`）で保持しているため、今後はNext.jsのRoute Handler経由でAPIキーをサーバー側に隠す設計に改善したい。
 
 ---

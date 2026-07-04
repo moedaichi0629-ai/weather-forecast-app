@@ -1,25 +1,34 @@
-import type { CityForecast, OpenWeatherForecastResponse } from "./types";
+import type {
+  CityForecast,
+  Coordinates,
+  OpenWeatherForecastResponse,
+} from "./types";
 
 const FORECAST_URL = "https://api.openweathermap.org/data/2.5/forecast";
 
 export class WeatherApiError extends Error {}
 
 /**
- * Fetches the 5-day / 3-hour forecast for a city and groups it into one
- * summary per calendar day (OpenWeatherMap's free plan does not offer a
- * true 7-day daily forecast, so 5 days is the max available here).
+ * Fetches the 5-day / 3-hour forecast and groups it into one summary per
+ * calendar day (OpenWeatherMap's free plan does not offer a true 7-day
+ * daily forecast, so 5 days is the max available here).
  */
-export async function fetchCityForecast(city: string): Promise<CityForecast> {
+async function fetchForecast(
+  locationParams: Record<string, string>
+): Promise<CityForecast> {
   const apiKey = process.env.NEXT_PUBLIC_OPENWEATHER_API_KEY;
   if (!apiKey) {
     throw new WeatherApiError("APIキーが設定されていません");
   }
 
-  const url = `${FORECAST_URL}?q=${encodeURIComponent(
-    city
-  )}&units=metric&lang=ja&appid=${apiKey}`;
+  const params = new URLSearchParams({
+    ...locationParams,
+    units: "metric",
+    lang: "ja",
+    appid: apiKey,
+  });
 
-  const res = await fetch(url);
+  const res = await fetch(`${FORECAST_URL}?${params.toString()}`);
   if (!res.ok) {
     throw new WeatherApiError(`天気情報の取得に失敗しました (status: ${res.status})`);
   }
@@ -30,6 +39,16 @@ export async function fetchCityForecast(city: string): Promise<CityForecast> {
     country: data.city.country,
     days: groupByDay(data.list),
   };
+}
+
+export function fetchCityForecast(city: string): Promise<CityForecast> {
+  return fetchForecast({ q: city });
+}
+
+export function fetchForecastByCoords(
+  coords: Coordinates
+): Promise<CityForecast> {
+  return fetchForecast({ lat: String(coords.lat), lon: String(coords.lon) });
 }
 
 function groupByDay(
