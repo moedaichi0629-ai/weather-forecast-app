@@ -75,6 +75,14 @@ function groupByDay(
     const tempMax = Math.max(...entries.map((e) => e.main.temp_max));
     const pop = Math.round(Math.max(...entries.map((e) => e.pop)) * 100);
 
+    const hourly = entries
+      .map((e) => ({
+        hour: Number(e.dt_txt.slice(11, 13)),
+        temp: Math.round(e.main.temp),
+        pop: Math.round(e.pop * 100),
+      }))
+      .sort((a, b) => a.hour - b.hour);
+
     return {
       date,
       tempMin: Math.round(tempMin),
@@ -84,6 +92,7 @@ function groupByDay(
       pop,
       weatherDescription: representative.weather[0]?.description ?? "",
       weatherIcon: representative.weather[0]?.icon ?? "01d",
+      hourly,
     };
   });
 

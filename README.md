@@ -52,6 +52,11 @@ https://weather-forecast-app-liart-two.vercel.app/
    何ができるか: 「📍 現在地の天気を取得」ボタンを押すと、都市名を入力せずに現在地の天気予報を取得できます。都市名検索と同じ天気カードに結果が表示されます。
    流れ: ボタン押下 → ブラウザの位置情報の許可を確認（Geolocation API）→ 許可されたら緯度・経度を取得 → OpenWeatherMap APIに緯度・経度を渡して予報を取得 → 既存のWeatherCardに表示。位置情報が拒否された場合は「位置情報の取得が許可されませんでした」、取得や通信に失敗した場合は「現在地の天気情報を取得できませんでした」を表示します。なお、現在地検索の結果は検索履歴には保存されません（都市名検索の履歴と混同しないための仕様）が、お気に入りへの登録は可能です。
 
+10. **時間帯ごとの天気グラフ**
+    何ができるか: 選択中の日付の気温・降水確率の推移を折れ線＋棒グラフで確認できます。グラフ上にカーソルを合わせるとツールチップでその時刻の詳細が表示されます。
+    流れ: 天気カードの下にRecharts製のグラフを表示 → 横軸に時刻、左の縦軸に気温（℃）、右の縦軸に降水確率（%）を配置 → 気温は折れ線、降水確率は棒グラフで重ねて表示。日付ボタンを切り替えると、そのままグラフの内容も切り替わります。
+    **注意（API仕様の制約）**: OpenWeatherMapの無料プラン「5 Day / 3 Hour Forecast」は名前の通り**3時間ごと**のデータしか提供されません。1時間ごとの真のデータは、別途サブスクリプション契約が必要な「One Call API 3.0」でのみ取得可能です（本アプリでは未契約）。そのため本機能では、実際のデータ間隔である3時間ごとの値（0:00, 3:00, 6:00…21:00の最大8点）をそのままグラフの横軸に使用しています。3時間の間を機械的に補間して1時間刻みに見せることもできますが、実測されていない値をあたかも実データのように表示するのは誤解を招くため、あえて行っていません。より高精度な1時間単位のグラフが必要な場合は、有料のOne Call API 3.0への切り替えを推奨します。
+
 ---
 
 # 使用技術
@@ -59,6 +64,7 @@ https://weather-forecast-app-liart-two.vercel.app/
 ・フロントエンド: Next.js（App Router）, React, TypeScript, Tailwind CSS
 ・API: OpenWeatherMap API（5 Day / 3 Hour Forecast、都市名検索・緯度経度検索の両対応）
 ・ブラウザAPI: Geolocation API（現在地の緯度・経度取得）
+・グラフ描画: Recharts（時間帯ごとの気温・降水確率グラフ）
 ・データ永続化: localStorage（検索履歴・お気に入り都市の保存）
 ・データベース: なし（天気データはAPIから都度取得するため未使用）
 ・デプロイ: Vercel
@@ -80,6 +86,7 @@ https://weather-forecast-app-liart-two.vercel.app/
 | 検索履歴 | 検索した都市を最大5件まで保存し、クリックで再検索・個別削除ができる |
 | お気に入り都市 | 表示中の都市をお気に入り登録・解除でき、一覧から再検索できる |
 | 現在地の天気取得 | Geolocation APIで取得した緯度・経度から現在地の天気を表示する |
+| 時間帯ごとの天気グラフ | 選択中の日付の気温・降水確率をRechartsの折れ線・棒グラフで表示する |
 
 ---
 
@@ -127,12 +134,22 @@ https://weather-forecast-app-liart-two.vercel.app/
       ```
     - `app/page.tsx` に、取得した緯度・経度で `fetchForecastByCoords` を呼び出し、結果を既存の `WeatherCard` にそのまま表示する処理を追加する。都市名検索と同じ `forecast` / `selectedDate` / `isLoading` / `error` の状態をそのまま使い回すことで、二重管理を避ける。
     - 位置情報が拒否された場合は「位置情報の取得が許可されませんでした」、それ以外の失敗時は「現在地の天気情報を取得できませんでした」を表示する。現在地取得の結果は `addSearchHistory` を呼ばないため検索履歴には残らない。
-13. ローカルで動作確認する。
+13. **時間帯ごとの天気グラフを追加する。**
+    - Rechartsをインストールする。
+      ```bash
+      npm install recharts
+      ```
+    - `lib/types.ts` に、1時点分のデータを表す `HourlyPoint`（`hour` / `temp` / `pop`）を追加し、`DailyForecast` に `hourly: HourlyPoint[]` を持たせる。
+    - `lib/weather.ts` の `groupByDay` で、日ごとにまとめる際に3時間ごとの各エントリを `hourly` 配列としてそのまま保持する（時刻でソート）。
+    - `components/HourlyWeatherChart.tsx` を作成し、Rechartsの `ComposedChart` で気温（`Line`・左軸）と降水確率（`Bar`・右軸）を1つのグラフに重ねて表示する。ツールチップは`content`にカスタムコンポーネントを渡し、Tailwindのクラスでダークモード対応する。
+    - グラフの罫線・軸ラベルの色は `stroke="currentColor"` / `tick={{ fill: "currentColor" }}` を使い、親要素のTailwindテキストカラー（`text-slate-500 dark:text-slate-400`）を継承させることで、ライト/ダーク両方で見やすい配色にする。
+    - `app/page.tsx` で、天気カードの下に `<HourlyWeatherChart hourly={selectedDay.hourly} />` を追加する。日付ボタンで `selectedDate` を切り替えると、渡す `hourly` も自動的に切り替わる。
+14. ローカルで動作確認する。
     ```bash
     npm install
     npm run dev
     ```
-14. GitHubにリポジトリを作成し、コードをpushする。
+15. GitHubにリポジトリを作成し、コードをpushする。
     ```bash
     git init
     git add .
@@ -141,7 +158,7 @@ https://weather-forecast-app-liart-two.vercel.app/
     git remote add origin <リポジトリURL>
     git push -u origin main
     ```
-15. Vercelにリポジトリを連携し、Environment VariablesにAPIキーを設定してデプロイする。
+16. Vercelにリポジトリを連携し、Environment VariablesにAPIキーを設定してデプロイする。
 
 > **注意**: Geolocation APIはセキュリティ上の理由から、`localhost` を除き **HTTPS環境でのみ動作**します。Vercelにデプロイした本番URLは自動でHTTPS化されるため問題ありません。
 
@@ -161,10 +178,11 @@ weather-forecast-app/
 │   ├── WeatherCard.tsx      # 天気情報表示カード
 │   ├── SearchHistory.tsx    # 検索履歴の一覧・選択・削除UI
 │   ├── FavoriteCities.tsx   # お気に入り都市の一覧・選択・削除UI
-│   └── CurrentLocationButton.tsx # Geolocation APIで現在地を取得するボタン
+│   ├── CurrentLocationButton.tsx # Geolocation APIで現在地を取得するボタン
+│   └── HourlyWeatherChart.tsx    # Rechartsによる時間帯ごとの気温・降水確率グラフ
 ├── lib/                     # ロジック・型定義
-│   ├── types.ts             # APIレスポンス型・アプリ内で使う型定義（座標型を含む）
-│   ├── weather.ts           # API呼び出し（都市名/緯度経度）と日別データ集計ロジック
+│   ├── types.ts             # APIレスポンス型・アプリ内で使う型定義（座標型・時間帯データ型を含む）
+│   ├── weather.ts           # API呼び出し（都市名/緯度経度）と日別・時間帯データの集計ロジック
 │   └── storage.ts           # 検索履歴・お気に入りのlocalStorage永続化
 ├── public/                  # 静的ファイル置き場
 ├── .env.local.example       # 環境変数のテンプレート
@@ -186,15 +204,19 @@ weather-forecast-app/
 ・**既存機能を壊さない設計（現在地取得）**: `fetchCityForecast` は変更せず、共通のリクエスト処理を切り出したうえで新たに `fetchForecastByCoords` を追加する形にした。`app/page.tsx` 側も、都市名検索用の `handleSearch` はそのまま残し、現在地取得用に `handleLocate` / `handleLocationError` を新設することで、既存の検索フローに影響を与えないようにした。
 ・**現在地取得の許可・拒否への対応**: `navigator.geolocation.getCurrentPosition` の成功・失敗コールバックをそれぞれハンドリングし、拒否時（`PERMISSION_DENIED`）とそれ以外の失敗時でメッセージを出し分けた。ボタン自身も取得中は非活性化し、二重クリックを防止した。
 ・**表示の一貫性**: 都市名検索・現在地取得のどちらの結果も同じ `forecast` / `WeatherCard` に表示することで、ユーザーから見て取得方法の違いを意識させない設計にした。
+・**データの正直さ（時間帯グラフ）**: OpenWeatherMapの無料プランは3時間ごとのデータしか提供しないため、1時間ごとのデータに補間・水増しすることはせず、実際に取得できた3時間間隔の値だけをグラフに表示するようにした。実測されていない値を実データのように見せないという判断を優先した。
+・**グラフの見やすさ**: 気温（折れ線）と降水確率（棒グラフ）を左右2つの縦軸に分けて1つのグラフに重ねることで、単位が異なる2種類の情報を1画面で比較できるようにした。ツールチップで時刻ごとの正確な数値も確認できる。
+・**ダークモード対応（グラフ）**: Rechartsの罫線・軸ラベルに `stroke="currentColor"` / `fill: "currentColor"` を指定し、親要素のTailwindテキストカラー（`dark:` バリアント込み）を継承させることで、ライト/ダークどちらの配色にも追従するようにした。ツールチップは独自のHTMLコンポーネントとして実装し、Tailwindの `dark:` クラスで背景・文字色を調整した。
+・**スマホ対応（グラフ）**: グラフ横幅が狭い画面では `overflow-x-auto` で横スクロールできるようにし、軸ラベルが潰れて読めなくならないようにした。
 
 ---
 
 # 今後追加したい機能
 
-1. **時間帯ごとの天気グラフ（Recharts）**
-   どんな人に役立つか: 数値の羅列より視覚的に気温の推移を把握したい人。
-   どんな場面で使うか: 1日の気温変化や降水確率の推移を掴みたいとき。
-   メリット: 直感的に天気の変化を理解できる。
+1. **1時間単位の詳細な天気グラフ（One Call API 3.0への切り替え）**
+   どんな人に役立つか: より細かい時間単位で天気の変化を把握したい人。
+   どんな場面で使うか: 屋外での短時間イベントや、通勤・通学時間帯だけの天気を細かく確認したいとき。
+   メリット: 現在の3時間間隔より高い解像度で気温・降水確率の変化を追える。
 
 2. **7日間の週間予報への対応（有料APIプランへの切り替え）**
    どんな人に役立つか: より長期の予定を立てたい人。
@@ -218,6 +240,9 @@ weather-forecast-app/
 ・**localStorageとReactの状態同期**: `localStorage` の読み込みを `useEffect` 内で `setState` すると、ESLintの `react-hooks/set-state-in-effect` ルールに抵触し、余計な再レンダリングも発生することを学んだ。`useState` の遅延初期化関数（`useState(() => ...)`）を使うことで、初回レンダリング時に一度だけ安全に読み込めることを理解した。
 ・**既存アプリへの機能追加**: 既存のコンポーネントやロジックを変更せず、新規ファイルの追加と `app/page.tsx` での配線のみで機能を拡張できるよう設計することで、既存機能への影響範囲を最小限に抑えられることを学んだ。
 ・**Geolocation API**: `navigator.geolocation.getCurrentPosition` は成功・失敗の2つのコールバックを取る非Promise形式のAPIであること、許可拒否は `PermissionDeniedError`（`error.code === error.PERMISSION_DENIED`）として区別できることを学んだ。また、本番運用ではHTTPS環境でなければ動作しない制約があることも把握した。
+・**Recharts**: `ComposedChart` で異なる種類のグラフ（`Line`と`Bar`）や異なる単位の縦軸（気温と%）を1つのグラフに重ねられることを学んだ。またSVGベースのライブラリでダークモードに対応させる際は、Tailwindの `dark:` クラスをSVG要素に直接当てるのではなく、`stroke`/`fill` に `currentColor` を指定して親要素の文字色を継承させる方法が有効だと分かった。
+・**APIデータの加工**: OpenWeatherMapの3時間ごとのデータをそのままグラフの元データとして使うか、1時間刻みに補間するかを検討し、実測されていない値を作り出さない方針を選んだ。表示上の見栄えよりもデータの正確さを優先する判断基準を学んだ。
+・**既存アプリへの機能追加**: 型定義（`DailyForecast`）に新しいフィールド（`hourly`）を追加する形でグラフ用データを持たせることで、既存の`WeatherCard`や`DateSelector`のロジックを一切変更せずに新機能を追加できることを学んだ。
 ・**改善点**: 現状はAPIキーをクライアント側（`NEXT_PUBLIC_`）で保持しているため、今後はNext.jsのRoute Handler経由でAPIキーをサーバー側に隠す設計に改善したい。
 
 ---

@@ -7,16 +7,17 @@ import WeatherCard from "@/components/WeatherCard";
 import SearchHistory from "@/components/SearchHistory";
 import FavoriteCities from "@/components/FavoriteCities";
 import CurrentLocationButton from "@/components/CurrentLocationButton";
+import HourlyWeatherChart from "@/components/HourlyWeatherChart";
 import { fetchCityForecast, fetchForecastByCoords } from "@/lib/weather";
 import type { CityForecast, Coordinates } from "@/lib/types";
 import {
   addFavoriteCity,
   addSearchHistory,
-  getFavoriteCities,
-  getSearchHistory,
   isFavoriteCity,
   removeFavoriteCity,
   removeSearchHistory,
+  useFavoriteCities,
+  useSearchHistory,
 } from "@/lib/storage";
 
 export default function Home() {
@@ -24,10 +25,8 @@ export default function Home() {
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [history, setHistory] = useState<string[]>(() => getSearchHistory());
-  const [favorites, setFavorites] = useState<string[]>(() =>
-    getFavoriteCities()
-  );
+  const history = useSearchHistory();
+  const favorites = useFavoriteCities();
 
   const handleSearch = async (city: string) => {
     setIsLoading(true);
@@ -36,7 +35,7 @@ export default function Home() {
       const result = await fetchCityForecast(city);
       setForecast(result);
       setSelectedDate(result.days[0]?.date ?? null);
-      setHistory(addSearchHistory(result.cityName));
+      addSearchHistory(result.cityName);
     } catch {
       setForecast(null);
       setSelectedDate(null);
@@ -69,20 +68,20 @@ export default function Home() {
   };
 
   const handleRemoveHistory = (city: string) => {
-    setHistory(removeSearchHistory(city));
+    removeSearchHistory(city);
   };
 
   const handleRemoveFavorite = (city: string) => {
-    setFavorites(removeFavoriteCity(city));
+    removeFavoriteCity(city);
   };
 
   const handleToggleFavorite = () => {
     if (!forecast) return;
-    setFavorites(
-      isFavoriteCity(forecast.cityName, favorites)
-        ? removeFavoriteCity(forecast.cityName)
-        : addFavoriteCity(forecast.cityName)
-    );
+    if (isFavoriteCity(forecast.cityName, favorites)) {
+      removeFavoriteCity(forecast.cityName);
+    } else {
+      addFavoriteCity(forecast.cityName);
+    }
   };
 
   const selectedDay = forecast?.days.find((d) => d.date === selectedDate);
@@ -150,6 +149,7 @@ export default function Home() {
               country={forecast.country}
               day={selectedDay}
             />
+            <HourlyWeatherChart hourly={selectedDay.hourly} />
           </div>
         )}
       </main>
