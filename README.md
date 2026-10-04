@@ -1,5 +1,40 @@
 # 天気予報API連携Webアプリ
 
+都市名から天気予報を検索し、日付ごとの情報やグラフを確認するWebアプリです。
+
+> 学習作品：外部API連携やWeb開発の学習成果として掲載しています。
+
+[作品一覧](https://github.com/moedaichi0629-ai/landing-page) · [ポートフォリオ](https://moedaichi0629-ai.github.io/landing-page/)
+
+## 解決する課題
+
+**想定利用者：** 外出前に天気を確認したい利用者
+
+複数日の予報を一覧で比較したいこと。
+
+## 主な機能
+
+- 都市名による天気検索と日付切り替え
+- 検索履歴・お気に入りの保存
+- 天気データのグラフ表示
+
+## デモ・利用方法
+
+[デモ](https://weather-forecast-app-liart-two.vercel.app/)
+
+## 使用技術
+
+Next.js / React / Tailwind CSS / OpenWeatherMap API / Recharts
+
+## 工夫した点
+
+APIデータの加工、ブラウザ保存、レスポンシブ表示の学習作品です。
+
+## セットアップ・技術詳細
+
+<details>
+<summary>操作方法・構成・設定手順などの詳細を開く</summary>
+
 # アプリ概要
 
 都市名を入力するだけで、その都市の天気予報（気温・天気・湿度・降水確率）を素早く確認できるWebアプリです。
@@ -265,3 +300,6 @@ npm run dev
 
 `.env.local` はGitHubに保存しないでください。
 Vercelにデプロイする場合は、VercelのEnvironment VariablesにAPIキーを設定してください。
+
+</details>
+
